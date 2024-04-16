@@ -3,6 +3,8 @@ package main
 import (
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/JamshedJ/position-tracking-service/internal/app"
 	"github.com/JamshedJ/position-tracking-service/internal/config"
@@ -21,8 +23,15 @@ func main() {
 	log.Info("running application")
 
 	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath)
-	application.GRPCSrv.Run()
+	go application.GRPCSrv.Run()
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	
+	<-stop
+	application.GRPCSrv.Stop()
+	log.Info("application stopped")
+	
 	// TODO: run GRPC server
 }
 
