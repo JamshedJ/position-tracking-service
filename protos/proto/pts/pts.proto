@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package position;
 
-option go_package = "./gen/pts";
+option go_package = "./gen/pts;ptsv1";
 
 service PositionTracker {
     rpc GetNearbyPositions(NearbyRequest) returns (stream PositionResponse) {}

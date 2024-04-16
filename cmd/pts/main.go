@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/JamshedJ/position-tracking-service/internal/app"
 	"github.com/JamshedJ/position-tracking-service/internal/config"
 )
 
@@ -18,8 +19,9 @@ func main() {
 
 	log := setupLogger(cfg.Env)
 	log.Info("running application")
-	
-	// TODO: init app
+
+	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath)
+	application.GRPCSrv.Run()
 
 	// TODO: run GRPC server
 }
