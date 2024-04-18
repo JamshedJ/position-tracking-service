@@ -1,57 +1,48 @@
 package main
 
 import (
-	"log/slog"
+	"log"
+	"net"
 	"os"
 	"os/signal"
-	"syscall"
 
-	"github.com/JamshedJ/position-tracking-service/internal/app"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"github.com/JamshedJ/position-tracking-service/internal/config"
-)
+	grpcSever "github.com/JamshedJ/position-tracking-service/internal/grpc"
+	"github.com/JamshedJ/position-tracking-service/internal/service"
 
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
+	mdb "github.com/JamshedJ/position-tracking-service/internal/storage/mongodb"
+	ptsv1 "github.com/JamshedJ/position-tracking-service/protos/gen/pts"
 )
 
 func main() {
 	cfg := config.MustLoad()
 
-	log := setupLogger(cfg.Env)
-	log.Info("running application")
+	collection := mdb.New(cfg.MongoDB.Uri, cfg.MongoDB.DBName, cfg.MongoDB.CollectionName)
 
-	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath)
-	go application.GRPCSrv.Run()
+	storage := mdb.NewStorage(collection)
+	svc := service.NewService(storage)
+	server := grpc.NewServer()
+	ptsv1.RegisterPositionTrackerServer(server, &grpcSever.Server{Service: svc})
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
-	
-	<-stop
-	application.GRPCSrv.Stop()
-	log.Info("application stopped")
-	
-	// TODO: run GRPC server
-}
-
-func setupLogger(env string) *slog.Logger {
-	var log *slog.Logger
-
-	switch env {
-	case envLocal:
-		log = slog.New(
-			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		)
-	case envDev:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		)
-	case envProd:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
-		)
+	listener, err := net.Listen("tcp", cfg.GRPC.Port)
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
 	}
+	go func() {
+		if err := server.Serve(listener); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
 
-	return log
+	reflection.Register(server)
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	log.Println("Shutting down server...")
+	server.GracefulStop()
 }

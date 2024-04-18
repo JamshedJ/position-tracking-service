@@ -9,14 +9,21 @@ import (
 )
 
 type Config struct {
-	Env         string     `yaml:"env" env-default:"local"`
-	StoragePath string     `yaml:"storage_path" env-required:"true"`
-	GRPC        GRPCConfig `yaml:"grpc"`
+	Env         string        `yaml:"env" env-default:"local"`
+	StoragePath string        `yaml:"storage_path" env-required:"true"`
+	GRPC        GRPCConfig    `yaml:"grpc"`
+	MongoDB     MongoDBConfig `yaml:"mongo_db"`
 }
 
 type GRPCConfig struct {
-	Port    int           `yaml:"port"`
+	Port    string        `yaml:"port"`
 	Timeout time.Duration `yaml:"timeout"`
+}
+
+type MongoDBConfig struct {
+	Uri            string `yaml:"uri"`
+	DBName         string `yaml:"dbname"`
+	CollectionName string `yaml:"collection_name"`
 }
 
 func MustLoad() *Config {
@@ -33,7 +40,6 @@ func MustLoad() *Config {
 	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
 		panic("failed to read config: " + err.Error())
 	}
-
 	return &cfg
 }
 
@@ -49,6 +55,5 @@ func fetchConfigPath() string {
 	if res == "" {
 		res = os.Getenv("CONFIG_PATH")
 	}
-
 	return res
 }
